@@ -12,7 +12,8 @@ def load_config():
             "config.json not found. Copy config.example.json to config.json "
             "(the onboarding conversation in CLAUDE.md does this for you) before collecting."
         )
-    return json.load(open(CONFIG_PATH))
+    with open(CONFIG_PATH) as f:
+        return json.load(f)
 
 
 def load_repos():

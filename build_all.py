@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Phase 2: assemble location-matched people across the configured activity
 types (starred, forked, contributor, issue_or_pr_author) for the configured
-repos, and write outputs/nyc_github_stargazers_deduplicated.csv (one row per
-person). Note: stargazers are only queryable for repos you have write access
+repos, and write a membership CSV, a deduplicated-person CSV, collection
+summary, and delivery README into outputs/. Note: stargazers are only queryable for repos you have write access
 to -- see pipeline_config.get_token's docstring.
 
 Forks carry the owner's profile fields inline from GraphQL, no extra call
@@ -12,7 +12,6 @@ are cached in profile_cache.json, shared across activity types and repos."""
 import csv
 import json
 import os
-import subprocess
 import time
 import urllib.error
 import urllib.request
@@ -42,6 +41,18 @@ DEDUP_FIELDS = [
     "data_source", "collected_at_utc",
 ]
 
+MEMBERSHIP_FIELDS = [
+    "github_username", "display_name", "self_reported_location", "location_match_reason",
+    "public_email", "email_status", "company", "blog_or_website", "profile_url",
+    "repo_owner", "repo_name", "repo_full_name", "company_or_product", "segment",
+    "activity_type", "activity_at", "data_source", "collected_at_utc",
+]
+
+MEMBERSHIP_CSV = "github_people_memberships.csv"
+DEDUP_CSV = "github_people_deduplicated.csv"
+SUMMARY_JSON = "collection_summary.json"
+DELIVERY_README = "README.md"
+
 
 def rest_get(url, retries=6):
     for attempt in range(retries):
@@ -62,13 +73,47 @@ def rest_get(url, retries=6):
 
 
 def load_json(path, default):
-    return json.load(open(path)) if os.path.exists(path) else default
+    if not os.path.exists(path):
+        return default
+    with open(path) as f:
+        return json.load(f)
 
 
 def save_json(path, obj):
     tmp = path + ".tmp"
-    json.dump(obj, open(tmp, "w"))
+    with open(tmp, "w") as f:
+        json.dump(obj, f)
     os.replace(tmp, path)
+
+
+def write_delivery_readme(counts_by_repo, unique_people, memberships):
+    """Write a non-sensitive handoff note alongside the generated data files."""
+    lines = [
+        "# GitHub collection output",
+        "",
+        f"Unique matched people: {unique_people}",
+        f"Matched repo/activity memberships: {memberships}",
+        "",
+        "## Scan status",
+        "",
+    ]
+    for repo, activities in counts_by_repo.items():
+        if not activities:
+            lines.append(f"- {repo}: no collection state found.")
+            continue
+        statuses = []
+        for activity, details in activities.items():
+            status = "complete" if details.get("fully_scanned") else "incomplete"
+            suffix = f" ({'; '.join(details.get('errors', []))})" if details.get("errors") else ""
+            statuses.append(f"{activity}: {status}{suffix}")
+        lines.append(f"- {repo}: " + "; ".join(statuses))
+    lines.extend([
+        "",
+        "See collection_summary.json for counts and any collection errors.",
+        "",
+    ])
+    with open(os.path.join(OUT_DIR, DELIVERY_README), "w") as f:
+        f.write("\n".join(lines))
 
 
 profile_cache = load_json(PROFILE_CACHE_FILE, {})
@@ -272,6 +317,7 @@ def collect_search(owner, name, company_or_product, segment, kind, activity_type
 def main():
     all_rows = []
     counts_by_repo = {}
+    os.makedirs(CACHE_ROOT, exist_ok=True)
 
     for owner, name, company_or_product, segment in REPOS:
         counts = {}
@@ -302,6 +348,11 @@ def main():
 
     os.makedirs(OUT_DIR, exist_ok=True)
 
+    with open(os.path.join(OUT_DIR, MEMBERSHIP_CSV), "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=MEMBERSHIP_FIELDS, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(all_rows)
+
     by_user = {}
     for row in all_rows:
         u = row["github_username"]
@@ -321,7 +372,7 @@ def main():
         rec["activity_types"].append(row["activity_type"])
         rec["activity_ats"].append(f"{row['repo_full_name']}:{row['activity_type']}:{row['activity_at']}")
 
-    with open(os.path.join(OUT_DIR, "nyc_github_stargazers_deduplicated.csv"), "w", newline="") as f:
+    with open(os.path.join(OUT_DIR, DEDUP_CSV), "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=DEDUP_FIELDS)
         w.writeheader()
         for rec in by_user.values():
@@ -331,6 +382,15 @@ def main():
             w.writerow(row)
 
     save_json(PROFILE_CACHE_FILE, profile_cache)
+    summary = {
+        "collected_at_utc": COLLECTED_AT,
+        "unique_people_matched": len(by_user),
+        "total_matched_memberships": len(all_rows),
+        "output_files": [MEMBERSHIP_CSV, DEDUP_CSV, SUMMARY_JSON, DELIVERY_README],
+        "repos": counts_by_repo,
+    }
+    save_json(os.path.join(OUT_DIR, SUMMARY_JSON), summary)
+    write_delivery_readme(counts_by_repo, len(by_user), len(all_rows))
     print(f"\nunique people matched: {len(by_user)}, total memberships: {len(all_rows)}")
     for repo_full_name, counts in counts_by_repo.items():
         print(f"{repo_full_name}: {counts}")

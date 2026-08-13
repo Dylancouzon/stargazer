@@ -91,12 +91,16 @@ def repo_dir(owner, name):
 
 
 def load_json(path, default):
-    return json.load(open(path)) if os.path.exists(path) else default
+    if not os.path.exists(path):
+        return default
+    with open(path) as f:
+        return json.load(f)
 
 
 def save_json(path, obj):
     tmp = path + ".tmp"
-    json.dump(obj, open(tmp, "w"))
+    with open(tmp, "w") as f:
+        json.dump(obj, f)
     os.replace(tmp, path)
 
 
@@ -117,7 +121,8 @@ def collect_forks(owner, name):
                 print(f"{owner}/{name} forks: FAILED page {state['page_index']}: {e}", flush=True)
                 return
             page = data["repository"]["forks"]
-            json.dump(page, open(pf, "w"))
+            with open(pf, "w") as f:
+                json.dump(page, f)
         state["scanned"] += len(page["nodes"])
         state["cursor"] = page["pageInfo"]["endCursor"]
         state["page_index"] += 1
@@ -145,7 +150,8 @@ def collect_contributors(owner, name):
                 print(f"{owner}/{name} contributors: FAILED page {state['page']}: {e}", flush=True)
                 return
             page = page or []
-            json.dump(page, open(pf, "w"))
+            with open(pf, "w") as f:
+                json.dump(page, f)
         state["scanned"] += len(page)
         state["done"] = len(page) < 100
         state["page"] += 1
@@ -208,11 +214,16 @@ def collect_search(owner, name, kind):
                     save_json(state_path, state)
                     print(f"{owner}/{name} {kind}: FAILED window {w['start']}..{w['end']} page {w['page']}: {e}", flush=True)
                     return
-                json.dump(page, open(pf, "w"))
+                with open(pf, "w") as f:
+                    json.dump(page, f)
                 time.sleep(2.2)
             items = page.get("items", [])
             state["scanned"] += len(items)
-            w["done"] = len(items) < 100
+            # Search exposes at most 1,000 results. A window with exactly 1,000
+            # items has ten full pages, so it has no short final page to mark it
+            # complete. Do not apply this to known oversized single-day windows:
+            # those are intentionally left incomplete and reported as capped.
+            w["done"] = len(items) < 100 or (w["page"] == 10 and w["count"] <= 1000)
             w["page"] += 1
             save_json(state_path, state)
     state["done"] = all(w["done"] for w in state["windows"])

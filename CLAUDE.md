@@ -42,7 +42,7 @@ python3 build_all.py
 ```
 Background `collect.py`/`collect_extra.py` if the scope chosen implies more than ~2 minutes (any competitor repo + issue_or_pr_author ⇒ background it; Qdrant-only stars ⇒ don't bother). Report progress tersely from `outputs/.cache/*.log`, not full log dumps.
 
-**7. Deliver.** Point to the four files in `outputs/`: both CSVs (row counts), `collection_summary.json`, `README.md`. State plainly which repos were fully scanned and which weren't, and why.
+**7. Deliver.** Point to the four files in `outputs/`: `github_people_memberships.csv`, `github_people_deduplicated.csv` (include both row counts), `collection_summary.json`, and `README.md`. State plainly which repos were fully scanned and which weren't, and why.
 
 ## Notes for any run after the first
 `config.json` already exists → skip straight to step 6, unless the user asks to change scope/location/repos, in which case redo the relevant step only.
