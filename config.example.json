@@ -1,0 +1,21 @@
+{
+  "location_name": "New York City metro",
+  "location_keywords": [
+    "new york city", "nyc", "new york metro", "ny metro", "tri-state", "tri state",
+    "manhattan", "brooklyn", "queens", "bronx", "staten island",
+    "long island", "westchester", "hudson valley",
+    "jersey city", "hoboken", "newark", "new jersey",
+    "stamford", "greenwich", "connecticut",
+    "yonkers", "white plains", "new rochelle",
+    "new york"
+  ],
+  "state_codes": ["ny", "nj", "ct"],
+  "activity_types": ["starred", "forked", "contributor", "issue_or_pr_author"],
+  "repos": [
+    {"owner": "qdrant", "name": "qdrant", "company_or_product": "Qdrant", "segment": "Qdrant"},
+    {"owner": "weaviate", "name": "weaviate", "company_or_product": "Weaviate", "segment": "Competitor"},
+    {"owner": "milvus-io", "name": "milvus", "company_or_product": "Milvus", "segment": "Competitor"},
+    {"owner": "chroma-core", "name": "chroma", "company_or_product": "Chroma", "segment": "Competitor"},
+    {"owner": "pinecone-io", "name": "python-sdk", "company_or_product": "Pinecone", "segment": "Competitor"}
+  ]
+}
